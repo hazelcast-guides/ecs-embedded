@@ -2,6 +2,7 @@
   "family": "hazelcast",
   "networkMode": "awsvpc",
   "taskRoleArn": "TASK_ROLE_ARN",
+  "executionRoleArn": "EXECUTION_ROLE_ARN",
   "containerDefinitions": [
     {
       "name": "hazelcast-embedded",

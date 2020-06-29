@@ -178,13 +178,13 @@ $ aws iam create-role --role-name hazelcast-ecs-role --assume-role-policy-docume
 }
 ----
 
-Note Role `Arn` from the output as you'll need to use it in the next steps.
+Note Role `Arn` from the output as you'll need to use it in the next steps as `TASK_ROLE_ARN`.
 
 ----
 aws iam attach-role-policy --role-name hazelcast-ecs-role --policy-arn arn:aws:iam::665466731577:policy/hazelcast-ecs-policy
 ----
 
-== Create AWS CloudWatch Group
+== Configure AWS CloudWatch
 
 If you want to read the application logs from your Application, you need to create AWS CloudWatch Group. Note that this step is not required, but highly recommended. If you skip it, you also need to remove CloudWatch entry from `task-definition.json` in the further step and you won't be able to see any logs from your application.
 
@@ -194,15 +194,80 @@ To create CloudWatch group, execute the following command.
 aws logs create-log-group --log-group-name /ecs/hazelcast
 ---
 
+To allow ECS Task to write to CloudWatch Log Group, you also need to create the following ECS Role.
+
+----
+$ aws iam create-role --role-name ecs-execution-role --assume-role-policy-document file://role-policy.json
+{
+    "Role": {
+        "Path": "/",
+        "RoleName": "ecs-execution-role",
+        "RoleId": "AROAZV4HIPQ4SGDIWGYRK",
+        "Arn": "arn:aws:iam::665466731577:role/ecs-execution-role",
+        "CreateDate": "2020-06-29T10:44:01Z",
+        "AssumeRolePolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {
+                        "Service": "ecs-tasks.amazonaws.com"
+                    },
+                    "Action": "sts:AssumeRole"
+                }
+            ]
+        }
+    }
+}
+----
+
+Note Role `Arn` from the output as you'll need to use in the further steps as `EXECUTION_ROLE_ARN`.
+
+Then, attach `AmazonECSTaskExecutionRolePolicy` to the created role.
+
+----
+aws iam attach-role-policy --role-name ecs-execution-role --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
+----
+
+
 == Create Task Definition
 
 To create ECS Task Definition you need first to update `task-definition.json` with the following values:
-* `TASK_ROLE_ARN` - `Arn` of the Role created in the previous step
-* `us-east-1` - Region that you use for your CloudWatch and ECS Cluster
+* `TASK_ROLE_ARN` - `Arn` of the Role created in the "Create IAM Role" step
+* `EXECUTION_ROLE_ARN` - `Arn` of the Role created in the "Configure AWS CloudWatch" step
+* (optionally) `awslogs-region` - Region that you use for your CloudWatch and ECS Cluster
 
 ---
 aws ecs register-task-definition --cli-input-json file://task-definition.json
 ---
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
