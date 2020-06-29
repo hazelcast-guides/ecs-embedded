@@ -238,10 +238,74 @@ To create ECS Task Definition you need first to update `task-definition.json` wi
 * (optionally) `awslogs-region` - Region that you use for your CloudWatch and ECS Cluster
 
 ---
-aws ecs register-task-definition --cli-input-json file://task-definition.json
+$ aws ecs register-task-definition --cli-input-json file://task-definition.json
+{
+    "taskDefinition": {
+        "taskDefinitionArn": "arn:aws:ecs:eu-central-1:665466731577:task-definition/hazelcast:1",
+        "containerDefinitions": [
+            {
+                "name": "hazelcast-embedded",
+                "image": "hazeclastguides/hazelcast-embedded-ecs",
+                "cpu": 0,
+                "portMappings": [],
+                "essential": true,
+                "environment": [],
+                "mountPoints": [],
+                "volumesFrom": [],
+                "logConfiguration": {
+                    "logDriver": "awslogs",
+                    "options": {
+                        "awslogs-group": "/ecs/hazelcast",
+                        "awslogs-region": "us-east-1",
+                        "awslogs-stream-prefix": "ecs"
+                    }
+                }
+            }
+        ],
+        "family": "hazelcast",
+        "taskRoleArn": "arn:aws:iam::665466731577:role/hazelcast-ecs-role",
+        "executionRoleArn": "arn:aws:iam::665466731577:role/ecs-execution-role",
+        "networkMode": "awsvpc",
+        "revision": 1,
+        "volumes": [],
+        "status": "ACTIVE",
+        "requiresAttributes": [
+            {
+                "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
+            },
+            {
+                "name": "ecs.capability.execution-role-awslogs"
+            },
+            {
+                "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
+            },
+            {
+                "name": "com.amazonaws.ecs.capability.task-iam-role"
+            },
+            {
+                "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
+            },
+            {
+                "name": "ecs.capability.task-eni"
+            }
+        ],
+        "placementConstraints": [],
+        "compatibilities": [
+            "EC2",
+            "FARGATE"
+        ],
+        "requiresCompatibilities": [
+            "FARGATE"
+        ],
+        "cpu": "256",
+        "memory": "1024"
+    }
+}
 ---
 
+== Create ECS Service
 
+aws ecs run-task --count 2 --cluster test-cluster --task-definition hazelcast-embedded --launch-type=FARGATE --network-configuration "awsvpcConfiguration={subnets=["subnet-05adac74ea141f677"],securityGroups=["sg-091ebdf5b05f61bf3"],assignPublicIp=ENABLED}"
 
 
 

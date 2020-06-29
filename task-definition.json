@@ -11,7 +11,7 @@
         "logDriver": "awslogs",
         "options": {
           "awslogs-group": "/ecs/hazelcast",
-          "awslogs-region": "us-east-1",
+          "awslogs-region": "eu-central-1",
           "awslogs-stream-prefix": "ecs"
         }
       }
