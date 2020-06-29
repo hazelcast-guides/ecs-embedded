@@ -23,37 +23,6 @@ In this guide, you'll deploy an application with embedded Hazelcast into an ECS 
 - JDK 1.8+
 - Apache Maven 3.2+
 
-== Create AWS ECS Cluster
-
-Assuming you have an AWS Account and AWS command line tool configured, you can create an ECS cluster with the following command.
-
-----
-$ aws ecs create-cluster --cluster-name test-cluster
-{
-    "cluster": {
-        "clusterArn": "arn:aws:ecs:eu-central-1:665466731577:cluster/test-cluster",
-        "clusterName": "test-cluster",
-        "status": "ACTIVE",
-        "registeredContainerInstancesCount": 0,
-        "runningTasksCount": 0,
-        "pendingTasksCount": 0,
-        "activeServicesCount": 0,
-        "statistics": [],
-        "tags": [],
-        "settings": [
-            {
-                "name": "containerInsights",
-                "value": "disabled"
-            }
-        ],
-        "capacityProviders": [],
-        "defaultCapacityProviderStrategy": []
-    }
-}
-----
-
-We will use this cluster for all further steps in this guide.
-
 == Create an Application
 
 You can embed Hazelcast into any JVM-based application and use any web framework you want. As the sample for this guide, let's use the application from https://github.com/hazelcast-guides/hazelcast-embedded-springboot[Getting Started with Hazelcast using Spring Boot] guide. To download it, execute the following command.
@@ -127,7 +96,116 @@ If you build the image by yourself, then you need to use your Docker Hub account
 docker push hazelcastguides/hazelcast-embedded-ecs
 ----
 
-If you want to use your image in the following steps, please also make sure your Docker Hub registry is public. However, for the purpose of this guide, you can also use the already built `hazelcastguides/hazelcast-embedded-kubernetes` Docker image.
+If you want to use your image in the following steps, please also make sure your Docker Hub registry is public. However, for the purpose of this guide, you can also use the already built `hazelcastguides/hazelcast-embedded-ecs` Docker image.
+
+== Create AWS ECS Cluster
+
+Assuming you have an AWS Account and AWS command line tool configured, you can create an ECS cluster with the following command.
+
+----
+$ aws ecs create-cluster --cluster-name test-cluster
+{
+    "cluster": {
+        "clusterArn": "arn:aws:ecs:eu-central-1:665466731577:cluster/test-cluster",
+        "clusterName": "test-cluster",
+        "status": "ACTIVE",
+        "registeredContainerInstancesCount": 0,
+        "runningTasksCount": 0,
+        "pendingTasksCount": 0,
+        "activeServicesCount": 0,
+        "statistics": [],
+        "tags": [],
+        "settings": [
+            {
+                "name": "containerInsights",
+                "value": "disabled"
+            }
+        ],
+        "capacityProviders": [],
+        "defaultCapacityProviderStrategy": []
+    }
+}
+----
+
+We will use this cluster for all further steps in this guide.
+
+== Create IAM Role
+
+Hazelcast ECS Discovery uses AWS API to discover Hazelcast members. That is why we need to grant it certain permissions. Here are the command to create an IAM Role we will later use by ECS Tasks.
+
+----
+$ aws iam create-policy --policy-name hazelcast-ecs-policy --policy-document file://policy.json
+{
+    "Policy": {
+        "PolicyName": "hazelcast-ecs-policy",
+        "PolicyId": "ANPAZV4HIPQ4QUIH45BXB",
+        "Arn": "arn:aws:iam::665466731577:policy/hazelcast-ecs-policy",
+        "Path": "/",
+        "DefaultVersionId": "v1",
+        "AttachmentCount": 0,
+        "PermissionsBoundaryUsageCount": 0,
+        "IsAttachable": true,
+        "CreateDate": "2020-06-29T09:52:05Z",
+        "UpdateDate": "2020-06-29T09:52:05Z"
+    }
+}
+----
+
+Note Policy `Arn` from the output as you'll need to use it in the further commands.
+
+----
+$ aws iam create-role --role-name hazelcast-ecs-role --assume-role-policy-document file://role-policy.json
+{
+    "Role": {
+        "Path": "/",
+        "RoleName": "hazelcast-ecs-role",
+        "RoleId": "AROAZV4HIPQ47NJGCHJ2A",
+        "Arn": "arn:aws:iam::665466731577:role/hazelcast-ecs-role",
+        "CreateDate": "2020-06-29T09:58:06Z",
+        "AssumeRolePolicyDocument": {
+            "Version": "2012-10-17",
+            "Statement": [
+                {
+                    "Effect": "Allow",
+                    "Principal": {
+                        "Service": "ecs-tasks.amazonaws.com"
+                    },
+                    "Action": "sts:AssumeRole"
+                }
+            ]
+        }
+    }
+}
+----
+
+Note Role `Arn` from the output as you'll need to use it in the next steps.
+
+----
+aws iam attach-role-policy --role-name hazelcast-ecs-role --policy-arn arn:aws:iam::665466731577:policy/hazelcast-ecs-policy
+----
+
+== Create AWS CloudWatch Group
+
+If you want to read the application logs from your Application, you need to create AWS CloudWatch Group. Note that this step is not required, but highly recommended. If you skip it, you also need to remove CloudWatch entry from `task-definition.json` in the further step and you won't be able to see any logs from your application.
+
+To create CloudWatch group, execute the following command.
+
+---
+aws logs create-log-group --log-group-name /ecs/hazelcast
+---
+
+== Create Task Definition
+
+To create ECS Task Definition you need first to update `task-definition.json` with the following values:
+* `TASK_ROLE_ARN` - `Arn` of the Role created in the previous step
+* `us-east-1` - Region that you use for your CloudWatch and ECS Cluster
+
+---
+aws ecs register-task-definition --cli-input-json file://task-definition.json
+---
+
+
+
 
 
 == Configure RBAC
