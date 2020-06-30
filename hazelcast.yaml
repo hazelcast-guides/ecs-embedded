@@ -1,6 +1,6 @@
 hazelcast:
   network:
-  	interfaces:
+    interfaces:
       enabled: true
       interfaces:
         - 10.0.*.*
