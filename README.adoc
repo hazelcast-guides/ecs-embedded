@@ -53,24 +53,26 @@ hazelcast:
 Note that you need to change `10.0.*.*` to the VPC you will use for your ECS Tasks. To list all your available VPCs, execute the following command.
 
 ----
-    $ aws ec2 describe-vpcs --query 'Vpcs[*].[VpcId,CidrBlock]'
+$ aws ec2 describe-vpcs --query 'Vpcs[*].[VpcId,CidrBlock]'
+[
     [
-        [
-            "vpc-0681043d6f49b039a",
-            "vpc-0681043d6f49b039a"
-        ],
-        [
-            "vpc-0ae005a4a2835bbb5",
-            "172.18.0.0/16"
-        ]
-
+        "vpc-0ae005a4a2835bbb5",
+        "172.18.0.0/16"
+    ],
+    [
+        "vpc-0681043d6f49b039a",
+        "10.0.0.0/16"
     ]
+]
 ----
 
-For the following steps, let's assume that we use VPC `vpc-0681043d6f49b039a` (CIDR `vpc-0681043d6f49b039a`).
+For the next steps, let's assume that we always use the VPC with ID `vpc-0681043d6f49b039a` (CIDR `vpc-10.0.0.0/16`). For the sake of simplicity, let's put it as an env variable:
 
+----
+export VPN_ID='vpc-0681043d6f49b039a'
+----
 
-To include this file inside your Spring Boot project, copy it into `hazelcast-embedded-springboot/src/resources/`.
+To include `hazelcast.yaml` inside your Spring Boot project, copy it into `hazelcast-embedded-springboot/src/resources/`.
 
 ----
 cp hazelcast.yaml hazelcast-embedded-springboot/src/main/resources/
@@ -114,48 +116,43 @@ If you want to use your image in the following steps, please also make sure your
 Assuming you have an AWS Account and AWS command line tool configured, you can create an ECS cluster with the following command.
 
 ----
-$ aws ecs create-cluster --cluster-name test-cluster
-{
-    "cluster": {
-        "clusterArn": "arn:aws:ecs:eu-central-1:665466731577:cluster/test-cluster",
-        "clusterName": "test-cluster",
-        "status": "ACTIVE",
-        "registeredContainerInstancesCount": 0,
-        "runningTasksCount": 0,
-        "pendingTasksCount": 0,
-        "activeServicesCount": 0,
-        "statistics": [],
-        "tags": [],
-        "settings": [
-            {
-                "name": "containerInsights",
-                "value": "disabled"
-            }
-        ],
-        "capacityProviders": [],
-        "defaultCapacityProviderStrategy": []
-    }
-}
+aws ecs create-cluster --cluster-name test-cluster
 ----
 
 We will use this cluster for all further steps in this guide.
 
 == Create AWS Security Group
 
-$ aws ec2 create-security-group --group-name hazelcast-security-group --description "Hazelcast Security Group" --vpc-id vpc-0681043d6f49b039a
+By default, Hazelcast uses the port 5701 for all the communication. Therefore, we need to create an appropriate security group.
+
+----
+$ aws ec2 create-security-group --group-name hazelcast-security-group --description "Hazelcast Security Group" --vpc-id ${VPC_ID}
 {
     "GroupId": "sg-0cf1116753b96cdce"
 }
+----
 
-aws ec2 authorize-security-group-ingress --group-id sg-0cf1116753b96cdce --protocol tcp --port 5701 --cidr 0.0.0.0/0
+Let's store the security group id as an environment variable.
 
-That is enough for the Hazelcast communication, however if you also want to play with the Spring Boot service, then you need to whitelist its port `8080`.
+----
+export SECURITY_GROUP_ID='sg-0cf1116753b96cdce'
+----
 
-aws ec2 authorize-security-group-ingress --group-id sg-0cf1116753b96cdce --protocol tcp --port 8080 --cidr 0.0.0.0/0
+Next, we need to open port 5701 for the TCP communication.
+
+----
+aws ec2 authorize-security-group-ingress --group-id ${SECURITY_GROUP_ID} --protocol tcp --port 5701 --cidr 0.0.0.0/0
+----
+
+That is enough for the Hazelcast communication, however if you also want to play with the Spring Boot service, then you need to whitelist its port 8080.
+
+----
+aws ec2 authorize-security-group-ingress --group-id ${SECURITY_GROUP_ID} --protocol tcp --port 8080 --cidr 0.0.0.0/0
+----
 
 == Create IAM Role
 
-Hazelcast ECS Discovery uses AWS API to discover Hazelcast members. That is why we need to grant it certain permissions. Here are the command to create an IAM Role we will later use by ECS Tasks.
+Hazelcast ECS Discovery uses AWS API to discover Hazelcast members. That is why we need to grant it certain permissions. Here are the commands to create an IAM Role we will later use by ECS Tasks.
 
 ----
 $ aws iam create-policy --policy-name hazelcast-ecs-policy --policy-document file://policy.json
@@ -175,7 +172,13 @@ $ aws iam create-policy --policy-name hazelcast-ecs-policy --policy-document fil
 }
 ----
 
-Note Policy `Arn` from the output as you'll need to use it in the further commands.
+Let's define this policy ARN as an environment variable.
+
+----
+export POLICY_ARN='arn:aws:iam::665466731577:policy/hazelcast-ecs-policy'
+----
+
+Next, let's define a new IAM Role.
 
 ----
 $ aws iam create-role --role-name hazelcast-ecs-role --assume-role-policy-document file://role-policy.json
@@ -202,15 +205,21 @@ $ aws iam create-role --role-name hazelcast-ecs-role --assume-role-policy-docume
 }
 ----
 
-Note Role `Arn` from the output as you'll need to use it in the next steps as `TASK_ROLE_ARN`.
+Define an environment variable with the role ARN.
 
 ----
-aws iam attach-role-policy --role-name hazelcast-ecs-role --policy-arn arn:aws:iam::665466731577:policy/hazelcast-ecs-policy
+$ export TASK_ROLE_ARN='arn:aws:iam::665466731577:role/hazelcast-ecs-role'
+----
+
+Finally, let's attach the defined policy to the created role.
+
+----
+aws iam attach-role-policy --role-name hazelcast-ecs-role --policy-arn ${POLICY_ARN}
 ----
 
 == Configure AWS CloudWatch
 
-If you want to read the application logs from your Application, you need to create AWS CloudWatch Group. Note that this step is not required, but highly recommended. If you skip it, you also need to remove CloudWatch entry from `task-definition.json` in the further step and you won't be able to see any logs from your application.
+If you want to read the application logs from your Application, you need to create AWS CloudWatch Group. Note that this step is not required, but highly recommended. If you skip it, you also need to remove CloudWatch entry from `task-definition.json` and then, in the further steps, you won't be able to see any logs from your application.
 
 To create CloudWatch group, execute the following command.
 
@@ -245,9 +254,13 @@ $ aws iam create-role --role-name ecs-execution-role --assume-role-policy-docume
 }
 ----
 
-Note Role `Arn` from the output as you'll need to use in the further steps as `EXECUTION_ROLE_ARN`.
+Export this role as an environment variable.
 
-Then, attach `AmazonECSTaskExecutionRolePolicy` to the created role.
+----
+export EXECUTION_ROLE_ARN='arn:aws:iam::665466731577:role/ecs-execution-role'
+----
+
+Finally, attach `AmazonECSTaskExecutionRolePolicy` to the created role.
 
 ----
 aws iam attach-role-policy --role-name ecs-execution-role --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
@@ -255,10 +268,12 @@ aws iam attach-role-policy --role-name ecs-execution-role --policy-arn arn:aws:i
 
 == Create Task Definition
 
-To create ECS Task Definition you need first to update `task-definition.json` with the following values:
-* `TASK_ROLE_ARN` - `Arn` of the Role created in the "Create IAM Role" step
-* `EXECUTION_ROLE_ARN` - `Arn` of the Role created in the "Configure AWS CloudWatch" step
-* (optionally) `awslogs-region` - Region that you use for your CloudWatch and ECS Cluster
+To create ECS Task Definition, you need first to update `task-definition.json` with the following values:
+* `TASK_ROLE_ARN` - ARN of the Role created in the "Create IAM Role" step
+* `EXECUTION_ROLE_ARN` - ARN of the Role created in the "Configure AWS CloudWatch" step
+* `REGION` - Region that you use for your CloudWatch and ECS Cluster
+
+
 
 ---
 $ aws ecs register-task-definition --cli-input-json file://task-definition.json
