@@ -273,78 +273,25 @@ To create ECS Task Definition, you need first to update `task-definition.json` w
 * `EXECUTION_ROLE_ARN` - ARN of the Role created in the "Configure AWS CloudWatch" step
 * `REGION` - Region that you use for your CloudWatch and ECS Cluster
 
+----
+sed -i "s/TASK_ROLE_ARN/${TASK_ROLE_ARN}/g" task-definition.json
+sed -i "s/EXECUTION_ROLE_ARN/${EXECUTION_ROLE_ARN}/g" task-definition.json
+sed -i "s/REGION/eu-central-1/g" task-definition.json
+----
 
+Then, you can create task definition with the following command.
 
 ---
-$ aws ecs register-task-definition --cli-input-json file://task-definition.json
-{
-    "taskDefinition": {
-        "taskDefinitionArn": "arn:aws:ecs:eu-central-1:665466731577:task-definition/hazelcast-embedded:2",
-        "containerDefinitions": [
-            {
-                "name": "hazelcast-embedded",
-                "image": "hazelcastguides/hazelcast-embedded-ecs",
-                "cpu": 0,
-                "portMappings": [],
-                "essential": true,
-                "environment": [],
-                "mountPoints": [],
-                "volumesFrom": [],
-                "logConfiguration": {
-                    "logDriver": "awslogs",
-                    "options": {
-                        "awslogs-group": "/ecs/hazelcast",
-                        "awslogs-region": "eu-central-1",
-                        "awslogs-stream-prefix": "ecs"
-                    }
-                }
-            }
-        ],
-        "family": "hazelcast-embedded",
-        "taskRoleArn": "arn:aws:iam::665466731577:role/hazelcast-ecs-role",
-        "executionRoleArn": "arn:aws:iam::665466731577:role/ecs-execution-role",
-        "networkMode": "awsvpc",
-        "revision": 2,
-        "volumes": [],
-        "status": "ACTIVE",
-        "requiresAttributes": [
-            {
-                "name": "com.amazonaws.ecs.capability.logging-driver.awslogs"
-            },
-            {
-                "name": "ecs.capability.execution-role-awslogs"
-            },
-            {
-                "name": "com.amazonaws.ecs.capability.docker-remote-api.1.19"
-            },
-            {
-                "name": "com.amazonaws.ecs.capability.task-iam-role"
-            },
-            {
-                "name": "com.amazonaws.ecs.capability.docker-remote-api.1.18"
-            },
-            {
-                "name": "ecs.capability.task-eni"
-            }
-        ],
-        "placementConstraints": [],
-        "compatibilities": [
-            "EC2",
-            "FARGATE"
-        ],
-        "requiresCompatibilities": [
-            "FARGATE"
-        ],
-        "cpu": "256",
-        "memory": "1024"
-    }
-}
+aws ecs register-task-definition --cli-input-json file://task-definition.json
 ---
 
 
 == Create ECS Service
 
-$ aws ec2 describe-subnets --filter --filters "Name=vpc-id,Values=vpc-0681043d6f49b039a" --query 'Subnets[*].[SubnetId,CidrBlock]'
+Finally, when all set and done we can start ECS Service which in turn will create ECS Tasks. First, choose the subnet in which our service should operate.
+
+----
+$ aws ec2 describe-subnets --filter --filters "Name=vpc-id,Values=${VPC_ID}" --query 'Subnets[*].[SubnetId,CidrBlock]'
 [
     [
         "subnet-0f042c997bad8e2b9",
@@ -352,8 +299,23 @@ $ aws ec2 describe-subnets --filter --filters "Name=vpc-id,Values=vpc-0681043d6f
     ]
 ]
 
-aws ecs create-service --cluster test-cluster --service-name hazelcast-embedded --task-definition hazelcast-embedded --desired-count 3 --launch-type=FARGATE --network-configuration "awsvpcConfiguration={subnets=["subnet-0f042c997bad8e2b9"],securityGroups=["sg-0cf1116753b96cdce"],assignPublicIp=ENABLED}"
+$ export SUBNET_ID='subnet-0f042c997bad8e2b9'
+----
 
+Then, create a service with 3 application replicas.
+
+----
+aws ecs create-service --cluster test-cluster \
+  --service-name hazelcast-embedded \
+  --task-definition hazelcast-embedded \
+  --launch-type=FARGATE \
+  --network-configuration "awsvpcConfiguration={subnets=["${SUBNET_ID}"],securityGroups=["${SECURITY_GROUP_ID}"],assignPublicIp=ENABLED}" \
+  --desired-count 3
+----
+
+You can check that the related tasks were created.
+
+----
 $ aws ecs list-tasks --cluster test-cluster --service hazelcast-embedded
 {
     "taskArns": [
@@ -362,21 +324,27 @@ $ aws ecs list-tasks --cluster test-cluster --service hazelcast-embedded
         "arn:aws:ecs:eu-central-1:665466731577:task/99de6977-949d-489c-9c5a-44c763edfaaf"
     ]
 }
+----
+
+You can also examinte the logs of one of the tasks and you should see that Hazelcast cluster was successfully formed.
 
 ----
 $ aws logs get-log-events --log-group-name /ecs/hazelcast --log-stream-name ecs/hazelcast-embedded/2154b675-df19-459e-a95e-8466f5d4bb59 --output text --query 'events[*].[message]'
+
+...
 Members {size:3, ver:3} [
         Member [10.0.1.4]:5701 - dae44d3d-882b-4f3a-aff3-09721b737276
         Member [10.0.1.6]:5701 - 3874314e-30f9-4f10-9f7d-11a0a32dc16b
         Member [10.0.1.220]:5701 - 9009d19a-63b1-4e90-b4de-48e877bb7086 this
 ]
+...
 ----
-
 
 == Testing the Application
 
-To test that the application works correctly, you can create a Kubernetes service which load balances the traffic to one of the application replicas.
+To test that the application works correctly, you can check the public IPs of your tasks and make REST calls to the application replicas.
 
+----
 $ aws ecs list-tasks --cluster test-cluster --service hazelcast-embedded
 {
     "taskArns": [
@@ -386,7 +354,9 @@ $ aws ecs list-tasks --cluster test-cluster --service hazelcast-embedded
     ]
 }
 
-$ aws ecs describe-tasks --cluster test-cluster --tasks 2154b675-df19-459e-a95e-8466f5d4bb59 7c3adb1d-6850-4f86-9eb1-7eed5bc75235 99de6977-949d-489c-9c5a-44c763edfaaf --query "tasks[*].attachments[*].details"
+$ aws ecs describe-tasks --cluster test-cluster \
+  --tasks 2154b675-df19-459e-a95e-8466f5d4bb59 7c3adb1d-6850-4f86-9eb1-7eed5bc75235 99de6977-949d-489c-9c5a-44c763edfaaf \
+  --query "tasks[*].attachments[*].details"
 [
     [
         [
@@ -450,14 +420,17 @@ $ aws ecs describe-tasks --cluster test-cluster --tasks 2154b675-df19-459e-a95e-
     ]
 ]
 
-
-$ aws ec2 describe-network-interfaces --network-interface-ids eni-0050d027099aeb812 eni-061b0e2414cfb1440 eni-0464651cd2cdf1b45 --query "NetworkInterfaces[*].Association.PublicIp"
+$ aws ec2 describe-network-interfaces \
+  --network-interface-ids eni-0050d027099aeb812 eni-061b0e2414cfb1440 eni-0464651cd2cdf1b45 \
+  --query "NetworkInterfaces[*].Association.PublicIp"
 [
     "3.123.22.224",
     "18.185.12.209",
     "18.184.248.123"
 ]
+----
 
+Knowing the public IPs of tasks, we can make calls to the application replicas.
 
 ----
 $ curl --data "key=key1&value=hazelcast" "3.123.22.224:8080/put"
@@ -471,8 +444,8 @@ $ curl "18.185.12.209:8080/get?key=key1"
 To delete the service we created, execute the following commands.
 
 ----
-aws ecs update-service --service hazelcast-embedded --desired-count 0 --cluster test-cluster
-aws ecs delete-service --service hazelcast-embedded --cluster test-cluster
+aws ecs update-service --cluster test-cluster --service hazelcast-embedded --desired-count 0
+aws ecs delete-service --cluster test-cluster --service hazelcast-embedded
 ----
 
 In order to delete all other resources we created in the guide, execute the following commands.
@@ -482,109 +455,10 @@ aws ecs deregister-task-definition --task-definition hazelcast-embedded:1
 aws iam detach-role-policy --role-name ecs-execution-role --policy-arn arn:aws:iam::aws:policy/service-role/AmazonECSTaskExecutionRolePolicy
 aws iam delete-role --role-name ecs-execution-role
 aws logs delete-log-group --log-group-name /ecs/hazelcast
-aws iam detach-role-policy --role-name hazelcast-ecs-role --policy-arn  arn:aws:iam::665466731577:policy/hazelcast-ecs-policy
+aws iam detach-role-policy --role-name hazelcast-ecs-role --policy-arn ${POLICY_ARN}
 aws iam delete-role --role-name hazelcast-ecs-role
-aws iam delete-policy --policy-arn arn:aws:iam::665466731577:policy/hazelcast-ecs-policy
-aws ec2 delete-security-group --group-id sg-0cf1116753b96cdce
+aws iam delete-policy --policy-arn ${POLICY_ARN}
+aws ec2 delete-security-group --group-id ${SECURITY_GROUP_ID}
 aws ecs delete-cluster --cluster test-cluster
-
 ---
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-== Configure RBAC
-
-https://github.com/hazelcast/hazelcast-kubernetes[Hazelcast Kubernetes discovery plugin] makes calls to Kubernetes API to provide automatic member discovery. Therefore, it needs to have specific ClusterRole rules granted. You can apply the minimal RBAC configuration (for the `default` service account in the `default` namespace) with the following command.
-
-----
-kubectl apply -f https://raw.githubusercontent.com/hazelcast/hazelcast-kubernetes/master/rbac.yaml
-----
-
-Note that:
-
-- If you use service account other than `default` or namespace other than `default`, you need to modify https://raw.githubusercontent.com/hazelcast/hazelcast-kubernetes/master/rbac.yaml
-- If your Kubernetes cluster does not use RBAC, you can skip the "Configure RBAC" step
-
-== Deploy the Application to Kubernetes
-
-Assuming you have a running Kubernetes cluster, you can run the following commands to deploy your application and scale it to 2 replicas.
-
-----
-kubectl create deployment my-app --image=hazelcastguides/hazelcast-embedded-kubernetes
-kubectl scale deployment my-app --replicas=2
-----
-
-Now, if you look into created pods, you should see two replicas of your application.
-
-----
-$ kubectl get pods
-NAME                      READY   STATUS    RESTARTS   AGE
-my-app-86df8b785f-4x9pj   1/1     Running   0          81s
-my-app-86df8b785f-h926d   1/1     Running   0          73s
-----
-
-In your application logs, you should see that embedded Hazelcast instances formed one cluster together.
-
-----
-$ kubectl logs pod/my-app-86df8b785f-4x9pj
-...
-Members {size:2, ver:2} [
-        Member [10.24.1.10]:5701 - a7eb36b6-6d86-4d26-8eb6-47986e46d055 this
-        Member [10.24.2.6]:5701 - 9994d6c6-d271-4ddd-9aa9-1ac4767c1a73
-]
-----
-
-== Testing the Application
-
-To test that the application works correctly, you can create a Kubernetes service which load balances the traffic to one of the application replicas.
-
-----
-kubectl create service clusterip my-app --tcp=8080:8080
-----
-
-Then, to be able to make calls from your local machine, you can use `port-forward`.
-
-----
-kubectl port-forward service/my-app 8080:8080
-----
-
-Finally, you can make a REST calls to your application.
-
-----
-$ curl --data "key=key1&value=hazelcast" "localhost:8080/put"
-{"value":"hazelcast"}
-$ curl "localhost:8080/get?key=key1"
-{"value":"hazelcast"}
-
-----
-
-== Tearing Down the Deployment
-
-To delete all Kubernetes resources you created, run the following command.
-
-----
-kubectl delete deployment/my-app service/my-app
-----
-
 
