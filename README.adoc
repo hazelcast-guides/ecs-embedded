@@ -294,9 +294,11 @@ To create ECS task definition, you need first to update `task-definition.json` w
 * `REGION` - Region that you use for your CloudWatch and ECS Cluster
 
 ----
-sed -i "s~TASK_ROLE_ARN~${TASK_ROLE_ARN}~g" task-definition.json
-sed -i "s~EXECUTION_ROLE_ARN~${EXECUTION_ROLE_ARN}~g" task-definition.json
-sed -i "s~REGION~eu-central-1~g" task-definition.json
+export ECS_REGION=$(aws configure get region)
+
+sed -i '' "s~TASK_ROLE_ARN~${TASK_ROLE_ARN}~g" task-definition.json
+sed -i '' "s~EXECUTION_ROLE_ARN~${EXECUTION_ROLE_ARN}~g" task-definition.json
+sed -i '' "s~REGION~${ECS_REGION}~g" task-definition.json
 ----
 
 Then, you can create task definition with the following command.
