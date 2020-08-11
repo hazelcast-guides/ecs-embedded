@@ -1,1 +1,1 @@
-See the guide [here](https://hazelcast-guides.github.io/guides-site/ecs-embedded/index.html).
+See the guide [here](https://guides.hazelcast.org/ecs-embedded).
