@@ -72,7 +72,7 @@ For the next steps, let's assume that we always use the VPC with ID `vpc-0681043
 export VPC_ID='vpc-0681043d6f49b039a'
 ----
 
-To include `hazelcast.yaml` inside your Spring Boot project, copy it into `hazelcast-embedded-springboot/src/resources/`.
+To include `hazelcast.yaml` inside your Spring Boot project, copy it into `hazelcast-embedded-springboot/src/main/resources/`.
 
 ----
 cp hazelcast.yaml hazelcast-embedded-springboot/src/main/resources/
