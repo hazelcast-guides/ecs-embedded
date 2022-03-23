@@ -1,21 +1,20 @@
-:github-address: https://github.com/hazelcast-guides/ecs-embedded
+= Get Started with Embedded Hazelcast on ECS
 :templates-url: templates:ROOT:page$/
-:hazelcast: Hazelcast IMDG
+:page-layout: tutorial
+:page-product: platform
+:page-categories: Caching, Spring Boot
+:page-lang: java
+:page-edition: 
+:page-est-time: 15 mins
 :framework: ECS
-
-= Getting Started with Embedded Hazelcast on ECS
-
-This guide will get you started to use Embedded Hazelcast on the ECS (both based on EC2 and Fargate) environment.
-
-include::{templates-url}/link-to-repo.adoc[]
+:description: pass:[In this tutorial, you'll deploy an application with embedded Hazelcast on an ECS cluster. Hazelcast members from each application replica will automatically discover themselves and form one consistent Hazelcast cluster. Thanks to https://github.com/hazelcast/hazelcast-aws[Hazelcast AWS discovery plugin], there is no static configuration needed.]
 
 == What You’ll Learn
 
-In this guide, you'll deploy an application with embedded Hazelcast into an ECS cluster. Hazelcast instances from each application replica will automatically discover themselves and form one consistent Hazelcast cluster. Thanks to https://github.com/hazelcast/hazelcast-aws[Hazelcast AWS discovery plugin], there is no static configuration needed.
+{description}
 
-== Prerequisites
+== Before you Begin
 
-- ~15 minutes
 - https://docs.docker.com/install/[Docker] (https://www.docker.com/products/docker-desktop[Docker for Desktop] is good enough)
 - AWS Account
 - https://aws.amazon.com/cli/[AWS command line tool]
@@ -25,10 +24,10 @@ In this guide, you'll deploy an application with embedded Hazelcast into an ECS 
 
 == Create an Application
 
-You can embed Hazelcast into any JVM-based application and use any web framework you want. As the sample for this guide, let's use the application from https://github.com/hazelcast-guides/hazelcast-embedded-springboot[Getting Started with Hazelcast using Spring Boot] guide. To download it, execute the following command.
+You can embed Hazelcast into any JVM-based application and use any web framework you want. As an example, this tutorial uses the application from the xref:hazelcast-embedded-springboot.adoc[] tutorial. To download it, execute the following command.
 
 ----
-git clone https://github.com/hazelcast-guides/hazelcast-embedded-springboot.git
+git clone https://github.com/hazelcast-guides/hazelcast-embedded-springboot
 ----
 
 == Use Hazelcast AWS ECS Configuration
@@ -109,7 +108,7 @@ If you build the image by yourself, then you need to use your Docker Hub account
 docker push hazelcastguides/hazelcast-embedded-ecs
 ----
 
-If you want to use your image in the following steps, please also make sure your Docker Hub registry is public. However, for the purpose of this guide, you can also use the already built `hazelcastguides/hazelcast-embedded-ecs` Docker image.
+If you want to use your image in the following steps, please also make sure your Docker Hub registry is public. However, for the purpose of this tutorial, you can also use the already built `hazelcastguides/hazelcast-embedded-ecs` Docker image.
 
 == Create AWS ECS Cluster
 
@@ -119,7 +118,7 @@ Assuming you have an AWS Account and AWS command line tool configured, you can c
 aws ecs create-cluster --cluster-name test-cluster
 ----
 
-We will use this cluster for all further steps in this guide.
+We will use this cluster for all further steps in this tutorial.
 
 == Create AWS Security Group
 
@@ -369,7 +368,7 @@ Members {size:3, ver:3} [
 ...
 ----
 
-== Testing the Application
+== Test the Application
 
 To test that the application works correctly, you can check the public IPs of your tasks and make REST calls to the application replicas.
 
@@ -473,7 +472,7 @@ curl "18.185.12.209:8080/get?key=key1"
 {"value":"hazelcast"}
 ----
 
-== Tearing Down the Deployment
+== Tear Down the Deployment
 
 To delete the service, execute the following commands.
 
@@ -487,7 +486,7 @@ aws ecs delete-service \
   --service hazelcast-embedded
 ----
 
-To delete all other resources we created in the guide, execute the following commands.
+To delete all other resources we created in the tutorial, execute the following commands.
 
 ----
 aws ecs deregister-task-definition --task-definition hazelcast-embedded:1
