@@ -1,7 +1,7 @@
 = Get Started with Embedded Hazelcast on ECS
 :templates-url: templates:ROOT:page$/
 :page-layout: tutorial
-:page-product: platform
+:page-product: imdg
 :page-categories: Caching, Spring Boot
 :page-lang: java
 :page-edition: 
