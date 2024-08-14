@@ -21,6 +21,7 @@
 - https://git-scm.com/[Git]
 - JDK 1.8+
 - Apache Maven 3.2+
+- The tutorial files, available on https://github.com/hazelcast-guides/ecs-embedded[GitHub]
 
 == Create an Application
 
